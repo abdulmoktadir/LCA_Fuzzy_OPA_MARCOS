@@ -661,6 +661,10 @@ def tfn_scalar_div(a, scalar):
     return (a[0] / scalar, a[1] / scalar, a[2] / scalar)
 
 
+def defuzz_marcos_tfn(a):
+    return (a[0] + 4 * a[1] + a[2]) / 6.0
+
+
 def crisp_to_tfn_10pct(x):
     x = float(x)
     if x == 0:
@@ -1040,7 +1044,6 @@ def marcos_step7_calculations():
     n_alt = len(alternatives)
     n_crit = len(criteria)
 
-    # Show fuzzy criteria weights
     st.subheader('Fuzzy Criteria Weights')
     df_w = pd.DataFrame({
         'Criterion': criteria,
@@ -1049,55 +1052,85 @@ def marcos_step7_calculations():
     })
     st.dataframe(df_w, use_container_width=True, hide_index=True)
 
-    # Step 1-2: Expanded matrix with AAI and AI
-    aai = []
-    ai = []
+    # =====================================================
+    # Step 1-2: Extended integrated matrix references
+    # Excel logic:
+    # A (AI) = anti-ideal reference row
+    # A (ID) = ideal reference row
+    # For benefit: anti-ideal=min, ideal=max
+    # For cost: anti-ideal=max, ideal=min
+    # =====================================================
+    anti_ideal = []
+    ideal = []
     for j in range(n_crit):
         col = [fuzzy_matrix[i][j] for i in range(n_alt)]
         if crit_types[j] == 'Benefit':
-            aai.append((min(x[0] for x in col), min(x[1] for x in col), min(x[2] for x in col)))
-            ai.append((max(x[0] for x in col), max(x[1] for x in col), max(x[2] for x in col)))
+            anti_ideal.append((min(x[0] for x in col), min(x[1] for x in col), min(x[2] for x in col)))
+            ideal.append((max(x[0] for x in col), max(x[1] for x in col), max(x[2] for x in col)))
         else:
-            aai.append((max(x[0] for x in col), max(x[1] for x in col), max(x[2] for x in col)))
-            ai.append((min(x[0] for x in col), min(x[1] for x in col), min(x[2] for x in col)))
+            anti_ideal.append((max(x[0] for x in col), max(x[1] for x in col), max(x[2] for x in col)))
+            ideal.append((min(x[0] for x in col), min(x[1] for x in col), min(x[2] for x in col)))
 
-    st.subheader('Step 1–2: Anti-Ideal (AAI) and Ideal (AI) Solutions')
+    st.subheader('Step 1–2: Extended Integrated Matrix References')
     df_ref = pd.DataFrame({
         'Criterion': criteria,
         'Type': crit_types,
-        'AAI': [format_tfn(x) for x in aai],
-        'AI': [format_tfn(x) for x in ai],
+        'A (AI)': [format_tfn(x) for x in anti_ideal],
+        'A (ID)': [format_tfn(x) for x in ideal],
     })
     st.dataframe(df_ref, use_container_width=True, hide_index=True)
 
-    # Step 3: Fuzzy normalized matrix
-    norm = [[None for _ in range(n_crit)] for _ in range(n_alt + 2)]
-    labels = ['AAI'] + alternatives + ['AI']
-    expanded = [aai] + fuzzy_matrix + [ai]
+    # =====================================================
+    # Step 3: Extended integrated matrix
+    # Row order follows Excel:
+    # A (AI), A1..An, A (ID)
+    # =====================================================
+    labels = ['A (AI)'] + alternatives + ['A (ID)']
+    extended = [anti_ideal] + fuzzy_matrix + [ideal]
 
+    ext_df = pd.DataFrame(index=labels, columns=criteria)
+    for i, lab in enumerate(labels):
+        for j, c in enumerate(criteria):
+            ext_df.loc[lab, c] = format_tfn(extended[i][j])
+    st.subheader('Step 3: Extended Integrated Matrix')
+    st.dataframe(ext_df, use_container_width=True)
+
+    # =====================================================
+    # Step 4: Normalized extended integrated matrix
+    # Excel-equivalent formulas:
+    # Benefit: (x_l/ID_u, x_m/ID_u, x_u/ID_u)
+    # Cost:    (ID_l/x_u, ID_l/x_m, ID_l/x_l)
+    # =====================================================
+    norm = [[None for _ in range(n_crit)] for _ in range(n_alt + 2)]
     for i in range(n_alt + 2):
         for j in range(n_crit):
-            x = expanded[i][j]
+            x = extended[i][j]
             if crit_types[j] == 'Benefit':
-                denom = ai[j][2]
-                denom = denom if abs(denom) > 1e-9 else 1e-9
-                norm[i][j] = (x[0] / denom, x[1] / denom, x[2] / denom)
+                denom = max(ideal[j][2], 1e-9)
+                norm[i][j] = (
+                    x[0] / denom,
+                    x[1] / denom,
+                    x[2] / denom,
+                )
             else:
-                a = ai[j][0]
+                a = ideal[j][0]
                 norm[i][j] = (
                     a / max(x[2], 1e-9),
                     a / max(x[1], 1e-9),
                     a / max(x[0], 1e-9),
                 )
 
-    st.subheader('Step 3: Fuzzy Normalized Matrix')
     norm_df = pd.DataFrame(index=labels, columns=criteria)
     for i, lab in enumerate(labels):
         for j, c in enumerate(criteria):
             norm_df.loc[lab, c] = format_tfn(norm[i][j])
+    st.subheader('Step 4: Normalized Extended Integrated Matrix')
     st.dataframe(norm_df, use_container_width=True)
 
-    # Step 4: Weighted normalized matrix using FUZZY weights
+    # =====================================================
+    # Step 5: Weighted normalized matrix
+    # Excel-equivalent component-wise fuzzy multiplication
+    # =====================================================
     weighted = [[None for _ in range(n_crit)] for _ in range(n_alt + 2)]
     for i in range(n_alt + 2):
         for j in range(n_crit):
@@ -1107,14 +1140,16 @@ def marcos_step7_calculations():
                 norm[i][j][2] * fuzzy_weights[j][2],
             )
 
-    st.subheader('Step 4: Weighted Fuzzy Normalized Matrix')
     weighted_df = pd.DataFrame(index=labels, columns=criteria)
     for i, lab in enumerate(labels):
         for j, c in enumerate(criteria):
             weighted_df.loc[lab, c] = format_tfn(weighted[i][j])
+    st.subheader('Step 5: Weighted Normalized Matrix')
     st.dataframe(weighted_df, use_container_width=True)
 
-    # Step 5: S_i
+    # =====================================================
+    # Step 6: Si values (sum of TFNs across criteria)
+    # =====================================================
     S = []
     for i in range(n_alt + 2):
         s = (0.0, 0.0, 0.0)
@@ -1125,91 +1160,122 @@ def marcos_step7_calculations():
     s_df = pd.DataFrame({
         'Alternative': labels,
         'S_i (TFN)': [format_tfn(x) for x in S],
+        'Crisp T_i': [defuzz_marcos_tfn(x) for x in S],
     })
-    st.subheader('Step 5: Total Weighted Values (S_i)')
+    st.subheader('Step 6: Aggregated Fuzzy Utility (S_i)')
     st.dataframe(s_df, use_container_width=True, hide_index=True)
 
-    S_aai = S[0]
-    S_ai = S[-1]
+    S_ai = S[0]   # A (AI)
+    S_id = S[-1]  # A (ID)
 
-    # Step 6: K- and K+
+    # =====================================================
+    # Step 7: Fuzzy Ki- and Ki+
+    # Excel-equivalent:
+    # Ki- = Si / S(AI)
+    # Ki+ = Si / S(ID)
+    # with triangular fuzzy division ordering:
+    # (l/u, m/m, u/l)
+    # =====================================================
     results = []
     for idx, alt in enumerate(alternatives, start=1):
         Si = S[idx]
-        K_minus = (Si[0] / max(S_aai[2], 1e-9), Si[1] / max(S_aai[1], 1e-9), Si[2] / max(S_aai[0], 1e-9))
-        K_plus = (Si[0] / max(S_ai[2], 1e-9), Si[1] / max(S_ai[1], 1e-9), Si[2] / max(S_ai[0], 1e-9))
-        t_i = tfn_add(K_minus, K_plus)
+        K_minus = (
+            Si[0] / max(S_ai[2], 1e-9),
+            Si[1] / max(S_ai[1], 1e-9),
+            Si[2] / max(S_ai[0], 1e-9),
+        )
+        K_plus = (
+            Si[0] / max(S_id[2], 1e-9),
+            Si[1] / max(S_id[1], 1e-9),
+            Si[2] / max(S_id[0], 1e-9),
+        )
+        T_i = tfn_add(K_minus, K_plus)
         results.append({
             'Alternative': alt,
             'S_i': Si,
             'K_minus': K_minus,
             'K_plus': K_plus,
-            't_i': t_i,
+            'T_i': T_i,
         })
 
     df_k = pd.DataFrame({
         'Alternative': [r['Alternative'] for r in results],
+        'S_i': [format_tfn(r['S_i']) for r in results],
         'Fuzzy K-': [format_tfn(r['K_minus']) for r in results],
         'Fuzzy K+': [format_tfn(r['K_plus']) for r in results],
-        't_i': [format_tfn(r['t_i']) for r in results],
+        'T_i': [format_tfn(r['T_i']) for r in results],
+        'Crisp T_i': [defuzz_marcos_tfn(r['T_i']) for r in results],
     })
-    st.subheader('Step 6–7: Utility Degrees and Total Utility Degree')
+    st.subheader('Step 7: Fuzzy Utility Degrees and Total Utility Degree')
     st.dataframe(df_k, use_container_width=True, hide_index=True)
 
-    # Step 7-8: d and dfcrisp
-    d = (
-        max(r['t_i'][0] for r in results),
-        max(r['t_i'][1] for r in results),
-        max(r['t_i'][2] for r in results),
-    )
-    # Final defuzzification at MARCOS stage
-    dfcrisp = (d[0] + 4 * d[1] + d[2]) / 6.0
-    st.metric('dfcrisp', f'{dfcrisp:.6f}')
+    # =====================================================
+    # Step 8: dfcrisp MAX
+    # IMPORTANT Excel logic:
+    # dfcrisp = MAX(crisp T_i), not max fuzzy component
+    # =====================================================
+    crisp_T = [defuzz_marcos_tfn(r['T_i']) for r in results]
+    dfcrisp = max(crisp_T) if crisp_T else 1e-9
+    st.metric('dfcrisp MAX', f'{dfcrisp:.6f}')
 
-    # Step 8-9: f(K-), f(K+), final utility
+    # =====================================================
+    # Step 9-10: Fuzzy F(K-), F(K+), crisp utilities and ranking
+    # Excel-equivalent:
+    # F(K-) = K+ / dfcrisp
+    # F(K+) = K- / dfcrisp
+    # =====================================================
     final_rows = []
     for r in results:
         fuzzy_f_k_minus = tfn_scalar_div(r['K_plus'], dfcrisp)
         fuzzy_f_k_plus = tfn_scalar_div(r['K_minus'], dfcrisp)
 
-        crisp_k_minus = (r['K_minus'][0] + 4 * r['K_minus'][1] + r['K_minus'][2]) / 6.0
-        crisp_k_plus = (r['K_plus'][0] + 4 * r['K_plus'][1] + r['K_plus'][2]) / 6.0
-        crisp_f_k_minus = (fuzzy_f_k_minus[0] + 4 * fuzzy_f_k_minus[1] + fuzzy_f_k_minus[2]) / 6.0
-        crisp_f_k_plus = (fuzzy_f_k_plus[0] + 4 * fuzzy_f_k_plus[1] + fuzzy_f_k_plus[2]) / 6.0
+        crisp_k_minus = defuzz_marcos_tfn(r['K_minus'])
+        crisp_k_plus = defuzz_marcos_tfn(r['K_plus'])
+        crisp_f_k_minus = defuzz_marcos_tfn(fuzzy_f_k_minus)
+        crisp_f_k_plus = defuzz_marcos_tfn(fuzzy_f_k_plus)
 
         term_minus = ((1 - crisp_f_k_minus) / crisp_f_k_minus) if crisp_f_k_minus > 0 else 0.0
         term_plus = ((1 - crisp_f_k_plus) / crisp_f_k_plus) if crisp_f_k_plus > 0 else 0.0
         denom = 1 + term_minus + term_plus
-        utility = (crisp_k_plus + crisp_k_minus) / denom if denom != 0 else 0.0
+        utility = (crisp_k_minus + crisp_k_plus) / denom if denom != 0 else 0.0
 
         final_rows.append({
             'Alternative': r['Alternative'],
             'Fuzzy K-': format_tfn(r['K_minus']),
             'Fuzzy K+': format_tfn(r['K_plus']),
+            'T_i': format_tfn(r['T_i']),
             'Fuzzy F(K-)': format_tfn(fuzzy_f_k_minus),
             'Fuzzy F(K+)': format_tfn(fuzzy_f_k_plus),
-            'Crisp Ki-': crisp_k_minus,
-            'Crisp Ki+': crisp_k_plus,
+            'Crisp K-': crisp_k_minus,
+            'Crisp K+': crisp_k_plus,
             'Crisp F(K-)': crisp_f_k_minus,
             'Crisp F(K+)': crisp_f_k_plus,
-            'f(Ki)': utility,
+            '(1-f(K-))/f(K-)': term_minus,
+            '(1-f(K+))/f(K+)': term_plus,
+            'f(K)': utility,
         })
 
-    final_df = pd.DataFrame(final_rows).sort_values('f(Ki)', ascending=False).reset_index(drop=True)
+    final_df = pd.DataFrame(final_rows).sort_values('f(K)', ascending=False).reset_index(drop=True)
     final_df['Rank'] = range(1, len(final_df) + 1)
 
-    st.subheader('Step 8–10: Final Utility Function and Ranking')
+    st.subheader('Step 9–10: Final Utility Function and Ranking')
     st.dataframe(final_df, use_container_width=True, hide_index=True)
 
     best_alt = final_df.iloc[0]['Alternative']
-    best_score = final_df.iloc[0]['f(Ki)']
+    best_score = final_df.iloc[0]['f(K)']
     st.success(f'Best Alternative: {best_alt} with utility score {best_score:.6f}')
+
+    export_df = final_df.rename(columns={
+        'Crisp K-': 'Crisp Ki-',
+        'Crisp K+': 'Crisp Ki+',
+        'f(K)': 'f(Ki)'
+    }).copy()
 
     all_data = {
         'n_alternatives': len(alternatives),
         'n_criteria': len(criteria),
         'n_experts': st.session_state.marcos_data['n_experts'],
-        'final_results': final_df,
+        'final_results': export_df,
         'best_alternative': best_alt,
         'best_score': best_score,
     }
