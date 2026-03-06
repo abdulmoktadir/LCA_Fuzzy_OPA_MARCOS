@@ -667,10 +667,13 @@ def defuzz_marcos_tfn(a):
 
 def generalized_mean_tfn(a):
     l, m, u = float(a[0]), float(a[1]), float(a[2])
+    # Match Excel exactly: IF(u>0, formula, 0)
+    if u <= 0:
+        return 0.0
     denom = 3.0 * (u - l)
     if abs(denom) < 1e-12:
-        return m
-    return (-l * l + u * u - l * m + m * u) / denom
+        return 0.0
+    return (u * u + m * u - l * m - l * l) / denom
 
 
 def crisp_to_tfn_10pct(x):
