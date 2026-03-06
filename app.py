@@ -641,182 +641,190 @@ def opa_model():
 
 
 # =========================================================
-# TRUST MODULE (TRIANGULAR FUZZY TRUST)
+# MARCOS MODULE (TRIANGULAR FUZZY MARCOS)
 # =========================================================
-def create_trust_word_document(all_data):
+def tfn_add(a, b):
+    return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+
+
+def tfn_div(a, b):
+    eps = 1e-9
+    return (
+        a[0] / max(b[2], eps),
+        a[1] / max(b[1], eps),
+        a[2] / max(b[0], eps),
+    )
+
+
+def tfn_scalar_div(a, scalar):
+    scalar = max(float(scalar), 1e-9)
+    return (a[0] / scalar, a[1] / scalar, a[2] / scalar)
+
+
+def crisp_to_tfn_10pct(x):
+    x = float(x)
+    if x == 0:
+        return (0.0, 0.0, 0.0)
+    if x > 0:
+        return (0.9 * x, x, 1.1 * x)
+    return (1.1 * x, x, 0.9 * x)
+
+
+def create_marcos_word_document(all_data):
     doc = Document()
-    title = doc.add_heading('Triangular Fuzzy TRUST Method Results', 0)
+    title = doc.add_heading('Triangular Fuzzy MARCOS Results', 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     doc.add_heading('Problem Setup', level=1)
-    table = doc.add_table(rows=5, cols=2)
-    table.style = 'Table Grid'
-    setup_data = [
+    setup = doc.add_table(rows=5, cols=2)
+    setup.style = 'Table Grid'
+    rows = [
         ('Number of Alternatives', all_data['n_alternatives']),
         ('Number of Criteria', all_data['n_criteria']),
         ('Number of Experts', all_data['n_experts']),
-        ('Alpha Parameters', f"α₁: {all_data['alpha'][0]}, α₂: {all_data['alpha'][1]}, α₃: {all_data['alpha'][2]}, α₄: {all_data['alpha'][3]}"),
-        ('Beta Parameter', all_data['beta']),
+        ('Hard Criteria Uncertainty', '10%'),
+        ('Defuzzification', '(l + 4m + u)/6 at final stage'),
     ]
-    for i, (label, value) in enumerate(setup_data):
-        row = table.rows[i].cells
-        row[0].text = label
-        row[1].text = str(value)
+    for i, (k, v) in enumerate(rows):
+        setup.rows[i].cells[0].text = str(k)
+        setup.rows[i].cells[1].text = str(v)
 
     doc.add_paragraph('')
     doc.add_heading('Final Ranking Results', level=1)
-    table = doc.add_table(rows=1, cols=5)
+    table = doc.add_table(rows=1, cols=6)
     table.style = 'Table Grid'
     hdr = table.rows[0].cells
     hdr[0].text = 'Rank'
     hdr[1].text = 'Alternative'
-    hdr[2].text = '∑Pik'
-    hdr[3].text = '∑Hik'
-    hdr[4].text = 'L Score'
+    hdr[2].text = 'Crisp Ki-'
+    hdr[3].text = 'Crisp Ki+'
+    hdr[4].text = 'Utility f(Ki)'
+    hdr[5].text = 'Order'
+
     for _, row_data in all_data['final_results'].iterrows():
         row = table.add_row().cells
-        row[0].text = str(row_data['Rank'])
-        row[1].text = row_data['Alternative']
-        row[2].text = f"{row_data['∑Pik']:.4f}"
-        row[3].text = f"{row_data['∑Hik']:.4f}"
-        row[4].text = f"{row_data['L Score']:.4f}"
+        row[0].text = str(int(row_data['Rank']))
+        row[1].text = str(row_data['Alternative'])
+        row[2].text = f"{row_data['Crisp Ki-']:.6f}"
+        row[3].text = f"{row_data['Crisp Ki+']:.6f}"
+        row[4].text = f"{row_data['f(Ki)']:.6f}"
+        row[5].text = str(int(row_data['Rank']))
 
     doc.add_paragraph('')
-    doc.add_paragraph(f"Best Alternative: {all_data['best_alternative']} with score: {all_data['best_score']:.4f}")
+    doc.add_paragraph(f"Best Alternative: {all_data['best_alternative']} with utility score {all_data['best_score']:.6f}")
 
-    doc_bytes = io.BytesIO()
-    doc.save(doc_bytes)
-    doc_bytes.seek(0)
-    return doc_bytes
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
 
 
-def trust_model():
-    st.markdown('<h1 class="main-header">Triangular Fuzzy TRUST Method</h1>', unsafe_allow_html=True)
-    st.write('Enhanced version with soft/hard criteria handling, expert aggregation, and your updated triangular linguistic scale.')
+def marcos_model():
+    st.markdown('<h1 class="main-header">Triangular Fuzzy MARCOS Method</h1>', unsafe_allow_html=True)
+    st.write('Soft criteria are aggregated using the trigonometric operator, hard criteria are converted into TFNs using 10% uncertainty, and defuzzification is performed at the final MARCOS stage.')
 
-    with st.expander('Learn more about the Triangular Fuzzy TRUST Method', expanded=False):
+    with st.expander('Learn more about the Triangular Fuzzy MARCOS Method', expanded=False):
         st.markdown(
             """
-            This version replaces trapezoidal fuzzy sets with triangular fuzzy numbers (TFNs).
-
-            **Key changes:**
-            - Soft criteria use your custom 9-level linguistic TFN scale.
-            - Hard criteria are transformed to TFNs using a small spread.
-            - Aggregation uses a trigonometric triangular fuzzy weighted geometric operator.
-            - Defuzzification uses the centroid of TFNs.
+            **Implemented logic in this module**
+            - Soft criteria: expert linguistic ratings → TFNs → trigonometric aggregation.
+            - Hard criteria: crisp values → TFNs with **10% uncertainty**.
+            - MARCOS computations are carried out in fuzzy form.
+            - **Defuzzification is postponed to the final stage**.
             """
         )
         display_linguistic_scale()
 
-    if 'trust_step' not in st.session_state:
-        st.session_state.trust_step = 1
-    if 'trust_data' not in st.session_state:
-        st.session_state.trust_data = {}
+    if 'marcos_step' not in st.session_state:
+        st.session_state.marcos_step = 1
+    if 'marcos_data' not in st.session_state:
+        st.session_state.marcos_data = {}
 
     steps = [
         'Problem Setup', 'Criteria Setup', 'Expert Weights', 'Data Collection',
-        'Build Decision Matrix', 'Criteria Information', 'Constraint Values', 'Results'
+        'Build Fuzzy Decision Matrix', 'Criteria Information', 'Results'
     ]
-    current_step = st.session_state.trust_step - 1
+    current_step = st.session_state.marcos_step - 1
     st.progress(current_step / (len(steps) - 1))
     st.write(f'**Current Step: {steps[current_step]}**')
 
-    if st.session_state.trust_step == 1:
-        trust_step1_input()
-    elif st.session_state.trust_step == 2:
-        trust_step2_criteria_setup()
-    elif st.session_state.trust_step == 3:
-        trust_step3_expert_weights()
-    elif st.session_state.trust_step == 4:
-        trust_step4_data_collection()
-    elif st.session_state.trust_step == 5:
-        trust_step5_decision_matrix()
-    elif st.session_state.trust_step == 6:
-        trust_step6_criteria_info()
-    elif st.session_state.trust_step == 7:
-        trust_step7_constraints()
-    elif st.session_state.trust_step == 8:
-        trust_step8_calculations()
+    if st.session_state.marcos_step == 1:
+        marcos_step1_input()
+    elif st.session_state.marcos_step == 2:
+        marcos_step2_criteria_setup()
+    elif st.session_state.marcos_step == 3:
+        marcos_step3_expert_weights()
+    elif st.session_state.marcos_step == 4:
+        marcos_step4_data_collection()
+    elif st.session_state.marcos_step == 5:
+        marcos_step5_decision_matrix()
+    elif st.session_state.marcos_step == 6:
+        marcos_step6_criteria_info()
+    elif st.session_state.marcos_step == 7:
+        marcos_step7_calculations()
 
 
-def trust_step1_input():
+def marcos_step1_input():
     st.header('Step 1: Problem Setup')
-    n_alternatives = st.number_input('Number of alternatives', min_value=2, max_value=20, value=4)
-    n_criteria = st.number_input('Number of criteria', min_value=2, max_value=20, value=6)
-    n_experts = st.number_input('Number of experts', min_value=1, max_value=10, value=3)
+    n_alternatives = st.number_input('Number of alternatives', min_value=2, max_value=50, value=4, key='marcos_n_alts')
+    n_criteria = st.number_input('Number of criteria', min_value=2, max_value=25, value=6, key='marcos_n_criteria')
+    n_experts = st.number_input('Number of experts', min_value=1, max_value=15, value=3, key='marcos_n_experts')
 
-    st.subheader('Normalization Parameters (α)')
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        alpha1 = st.number_input('α₁ (Linear Ratio)', min_value=0.0, max_value=1.0, value=0.25, step=0.05)
-    with col2:
-        alpha2 = st.number_input('α₂ (Linear Sum)', min_value=0.0, max_value=1.0, value=0.25, step=0.05)
-    with col3:
-        alpha3 = st.number_input('α₃ (Max-Min)', min_value=0.0, max_value=1.0, value=0.25, step=0.05)
-    with col4:
-        alpha4 = st.number_input('α₄ (Logarithmic)', min_value=0.0, max_value=1.0, value=0.25, step=0.05)
-
-    alpha_sum = alpha1 + alpha2 + alpha3 + alpha4
-    if abs(alpha_sum - 1.0) > 1e-6:
-        st.warning(f'Alpha values sum to {alpha_sum:.2f}, but should sum to 1.0')
-
-    beta = st.slider('β (Distance Aggregation Parameter)', min_value=0.0, max_value=1.0, value=0.5, step=0.1)
-
-    if st.button('Next: Criteria Setup'):
-        st.session_state.trust_data['n_alternatives'] = n_alternatives
-        st.session_state.trust_data['n_criteria'] = n_criteria
-        st.session_state.trust_data['n_experts'] = n_experts
-        st.session_state.trust_data['alpha'] = [alpha1, alpha2, alpha3, alpha4]
-        st.session_state.trust_data['beta'] = beta
-        st.session_state.trust_data['alternatives'] = [f'A{i+1}' for i in range(n_alternatives)]
-        st.session_state.trust_data['criteria'] = [f'C{i+1}' for i in range(n_criteria)]
-        st.session_state.trust_data['criteria_types'] = ['Soft'] * n_criteria
-        st.session_state.trust_data['expert_weights'] = [1.0 / n_experts] * n_experts
-        st.session_state.trust_step = 2
+    if st.button('Next: Criteria Setup', key='marcos_to_step2'):
+        st.session_state.marcos_data['n_alternatives'] = int(n_alternatives)
+        st.session_state.marcos_data['n_criteria'] = int(n_criteria)
+        st.session_state.marcos_data['n_experts'] = int(n_experts)
+        st.session_state.marcos_data['alternatives'] = [f'A{i+1}' for i in range(int(n_alternatives))]
+        st.session_state.marcos_data['criteria'] = [f'C{i+1}' for i in range(int(n_criteria))]
+        st.session_state.marcos_data['criteria_types'] = ['Soft'] * int(n_criteria)
+        st.session_state.marcos_data['expert_weights'] = [1.0 / int(n_experts)] * int(n_experts)
+        st.session_state.marcos_step = 2
         st.rerun()
 
 
-def trust_step2_criteria_setup():
+def marcos_step2_criteria_setup():
     st.header('Step 2: Criteria Setup')
-    n_criteria = st.session_state.trust_data['n_criteria']
-    criteria = st.session_state.trust_data['criteria']
+    n_criteria = st.session_state.marcos_data['n_criteria']
+    criteria = st.session_state.marcos_data['criteria']
 
-    data = {
+    df = pd.DataFrame({
         'Criterion': criteria,
-        'Type': st.session_state.trust_data['criteria_types'],
+        'Type': st.session_state.marcos_data['criteria_types'],
         'Description': [''] * n_criteria,
-    }
-    df = pd.DataFrame(data)
+    })
     edited_df = st.data_editor(
         df,
         use_container_width=True,
         column_config={
             'Type': st.column_config.SelectboxColumn('Type', options=['Soft', 'Hard'])
-        }
+        },
+        key='marcos_criteria_setup'
     )
 
     with st.expander('Linguistic Scale for Soft Criteria'):
         display_linguistic_scale()
 
-    if st.button('Next: Expert Weights'):
-        st.session_state.trust_data['criteria_setup'] = edited_df
-        st.session_state.trust_data['criteria_types'] = edited_df['Type'].tolist()
-        st.session_state.trust_step = 3
+    if st.button('Next: Expert Weights', key='marcos_to_step3'):
+        st.session_state.marcos_data['criteria_setup'] = edited_df
+        st.session_state.marcos_data['criteria_types'] = edited_df['Type'].tolist()
+        st.session_state.marcos_step = 3
         st.rerun()
 
 
-def trust_step3_expert_weights():
+def marcos_step3_expert_weights():
     st.header('Step 3: Expert Weights')
-    n_experts = st.session_state.trust_data['n_experts']
+    n_experts = st.session_state.marcos_data['n_experts']
     expert_weights = []
+
     for e in range(n_experts):
         weight = st.number_input(
             f'Weight for Expert {e+1}',
             min_value=0.0,
             max_value=1.0,
-            value=float(st.session_state.trust_data['expert_weights'][e]),
+            value=float(st.session_state.marcos_data['expert_weights'][e]),
             step=0.0001,
-            format='%.4f'
+            format='%.4f',
+            key=f'marcos_expert_weight_{e}'
         )
         expert_weights.append(weight)
 
@@ -825,34 +833,34 @@ def trust_step3_expert_weights():
     if valid_weights:
         st.success('Expert weights are valid.')
     else:
-        st.warning(f'Expert weights sum to {weight_sum:.2f}, but should sum to 1.0')
+        st.warning(f'Expert weights sum to {weight_sum:.4f}, but should sum to 1.0')
 
-    if st.button('Next: Data Collection') and valid_weights:
-        st.session_state.trust_data['expert_weights'] = expert_weights
-        st.session_state.trust_step = 4
+    if st.button('Next: Data Collection', key='marcos_to_step4') and valid_weights:
+        st.session_state.marcos_data['expert_weights'] = expert_weights
+        st.session_state.marcos_step = 4
         st.rerun()
 
 
-def trust_step4_data_collection():
+def marcos_step4_data_collection():
     st.header('Step 4: Data Collection')
-    n_alternatives = st.session_state.trust_data['n_alternatives']
-    n_criteria = st.session_state.trust_data['n_criteria']
-    n_experts = st.session_state.trust_data['n_experts']
-    alternatives = st.session_state.trust_data['alternatives']
-    criteria = st.session_state.trust_data['criteria']
-    criteria_types = st.session_state.trust_data['criteria_types']
+    n_alternatives = st.session_state.marcos_data['n_alternatives']
+    n_criteria = st.session_state.marcos_data['n_criteria']
+    n_experts = st.session_state.marcos_data['n_experts']
+    alternatives = st.session_state.marcos_data['alternatives']
+    criteria = st.session_state.marcos_data['criteria']
+    criteria_types = st.session_state.marcos_data['criteria_types']
 
-    if 'expert_data' not in st.session_state.trust_data:
-        st.session_state.trust_data['expert_data'] = {}
+    if 'expert_data' not in st.session_state.marcos_data:
+        st.session_state.marcos_data['expert_data'] = {}
         for e in range(n_experts):
-            st.session_state.trust_data['expert_data'][f'expert_{e}'] = pd.DataFrame(
+            st.session_state.marcos_data['expert_data'][f'expert_{e}'] = pd.DataFrame(
                 [['E'] * n_criteria for _ in range(n_alternatives)],
                 columns=criteria,
                 index=alternatives,
             )
 
-    if 'hard_data' not in st.session_state.trust_data:
-        st.session_state.trust_data['hard_data'] = pd.DataFrame(
+    if 'hard_data' not in st.session_state.marcos_data:
+        st.session_state.marcos_data['hard_data'] = pd.DataFrame(
             [[0.0] * n_criteria for _ in range(n_alternatives)],
             columns=criteria,
             index=alternatives,
@@ -866,7 +874,7 @@ def trust_step4_data_collection():
         expert_tabs = st.tabs([f'Expert {e+1}' for e in range(n_experts)])
         for e, tab in enumerate(expert_tabs):
             with tab:
-                current_data = st.session_state.trust_data['expert_data'][f'expert_{e}']
+                current_data = st.session_state.marcos_data['expert_data'][f'expert_{e}']
                 soft_data = current_data[soft_criteria].copy()
                 edited_soft = st.data_editor(
                     soft_data,
@@ -875,330 +883,333 @@ def trust_step4_data_collection():
                         for col in soft_criteria
                     },
                     use_container_width=True,
-                    key=f'trust_expert_{e}_soft'
+                    key=f'marcos_expert_{e}_soft'
                 )
-                st.session_state.trust_data['expert_data'][f'expert_{e}'].update(edited_soft)
+                st.session_state.marcos_data['expert_data'][f'expert_{e}'].update(edited_soft)
 
     st.write('### Hard Criteria Assessment')
+    st.caption('Hard criteria will be converted to TFNs using ±10% uncertainty.')
     if hard_criteria:
-        current_hard = st.session_state.trust_data['hard_data'][hard_criteria].copy()
-        edited_hard = st.data_editor(current_hard, use_container_width=True, key='trust_hard_data')
-        st.session_state.trust_data['hard_data'].update(edited_hard)
+        current_hard = st.session_state.marcos_data['hard_data'][hard_criteria].copy()
+        edited_hard = st.data_editor(current_hard, use_container_width=True, key='marcos_hard_data')
+        st.session_state.marcos_data['hard_data'].update(edited_hard)
 
-    if st.button('Next: Build Decision Matrix'):
-        st.session_state.trust_step = 5
+    if st.button('Next: Build Fuzzy Decision Matrix', key='marcos_to_step5'):
+        st.session_state.marcos_step = 5
         st.rerun()
 
 
-def trust_step5_decision_matrix():
-    st.header('Step 5: Build Decision Matrix')
-    n_alternatives = st.session_state.trust_data['n_alternatives']
-    n_criteria = st.session_state.trust_data['n_criteria']
-    n_experts = st.session_state.trust_data['n_experts']
-    alternatives = st.session_state.trust_data['alternatives']
-    criteria = st.session_state.trust_data['criteria']
-    criteria_types = st.session_state.trust_data['criteria_types']
-    expert_weights = st.session_state.trust_data['expert_weights']
+def marcos_step5_decision_matrix():
+    st.header('Step 5: Build Fuzzy Decision Matrix')
+    n_alternatives = st.session_state.marcos_data['n_alternatives']
+    n_experts = st.session_state.marcos_data['n_experts']
+    alternatives = st.session_state.marcos_data['alternatives']
+    criteria = st.session_state.marcos_data['criteria']
+    criteria_types = st.session_state.marcos_data['criteria_types']
+    expert_weights = st.session_state.marcos_data['expert_weights']
 
-    decision_matrix = np.zeros((n_alternatives, n_criteria))
-    expert_assessments_matrix = [[[] for _ in range(n_criteria)] for _ in range(n_alternatives)]
-    aggregated_tfn_matrix = [[() for _ in range(n_criteria)] for _ in range(n_alternatives)]
+    fuzzy_matrix = [[None for _ in criteria] for _ in alternatives]
+    detail_rows = []
 
-    for j, criterion in enumerate(criteria):
-        if str(criteria_types[j]).lower() == 'soft':
-            for i in range(n_alternatives):
+    for i, alt in enumerate(alternatives):
+        for j, criterion in enumerate(criteria):
+            if str(criteria_types[j]).lower() == 'soft':
                 tfn_list = []
                 labels = []
                 for e in range(n_experts):
-                    expert_df = st.session_state.trust_data['expert_data'][f'expert_{e}']
-                    linguistic_value = expert_df.loc[alternatives[i], criterion]
-                    labels.append(linguistic_value)
-                    tfn_list.append(LINGUISTIC_SCALE[linguistic_value])
-                aggregated_tfn = aggregate_tfn(tfn_list, expert_weights)
-                decision_matrix[i, j] = defuzz_tfn(aggregated_tfn)
-                expert_assessments_matrix[i][j] = labels
-                aggregated_tfn_matrix[i][j] = aggregated_tfn
-        else:
-            for i in range(n_alternatives):
-                crisp_value = st.session_state.trust_data['hard_data'].loc[alternatives[i], criterion]
-                tfn_value = crisp_to_tfn(crisp_value)
-                decision_matrix[i, j] = defuzz_tfn(tfn_value)
-                expert_assessments_matrix[i][j] = [crisp_value]
-                aggregated_tfn_matrix[i][j] = tfn_value
-
-    st.subheader('Aggregated Decision Matrix Details')
-    alt_tabs = st.tabs(alternatives)
-    for tab_idx, (tab, alternative) in enumerate(zip(alt_tabs, alternatives)):
-        with tab:
-            table_data = []
-            for j, criterion in enumerate(criteria):
-                assessments = expert_assessments_matrix[tab_idx][j]
-                aggregated_tfn = aggregated_tfn_matrix[tab_idx][j]
-                defuzzified_value = decision_matrix[tab_idx, j]
-                if str(criteria_types[j]).lower() == 'soft':
-                    assess_str = ', '.join(assessments)
-                else:
-                    assess_str = f'Crisp: {assessments[0]}'
-                table_data.append({
+                    val = st.session_state.marcos_data['expert_data'][f'expert_{e}'].loc[alt, criterion]
+                    labels.append(val)
+                    tfn_list.append(LINGUISTIC_SCALE[val])
+                agg = aggregate_tfn(tfn_list, expert_weights)
+                fuzzy_matrix[i][j] = agg
+                detail_rows.append({
+                    'Alternative': alt,
                     'Criterion': criterion,
-                    'Type': criteria_types[j],
-                    'Expert Assessments': assess_str,
-                    'Aggregated TFN': format_tfn(aggregated_tfn),
-                    'Defuzzified Value': f'{defuzzified_value:.4f}',
+                    'Type': 'Soft',
+                    'Inputs': ', '.join(labels),
+                    'Aggregated TFN': format_tfn(agg),
                 })
-            st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
+            else:
+                crisp = st.session_state.marcos_data['hard_data'].loc[alt, criterion]
+                tfn = crisp_to_tfn_10pct(crisp)
+                fuzzy_matrix[i][j] = tfn
+                detail_rows.append({
+                    'Alternative': alt,
+                    'Criterion': criterion,
+                    'Type': 'Hard',
+                    'Inputs': f'{crisp}',
+                    'Aggregated TFN': format_tfn(tfn),
+                })
 
-    st.subheader('Final Decision Matrix (Defuzzified Values)')
-    df_decision = pd.DataFrame(decision_matrix, columns=criteria, index=alternatives)
-    st.dataframe(df_decision, use_container_width=True)
+    st.subheader('Fuzzy Decision Matrix Details')
+    st.dataframe(pd.DataFrame(detail_rows), use_container_width=True, hide_index=True)
 
-    if st.button('Next: Criteria Information'):
-        st.session_state.trust_data['decision_matrix'] = decision_matrix
-        st.session_state.trust_step = 6
+    display_df = pd.DataFrame(index=alternatives, columns=criteria)
+    for i, alt in enumerate(alternatives):
+        for j, criterion in enumerate(criteria):
+            display_df.loc[alt, criterion] = format_tfn(fuzzy_matrix[i][j])
+    st.subheader('Final Fuzzy Decision Matrix')
+    st.dataframe(display_df, use_container_width=True)
+
+    st.session_state.marcos_data['fuzzy_matrix'] = fuzzy_matrix
+    st.session_state.marcos_step = 6
+    if st.button('Next: Criteria Information', key='marcos_to_step6'):
         st.rerun()
 
 
-def trust_step6_criteria_info():
+def marcos_step6_criteria_info():
     st.header('Step 6: Criteria Information')
-    n_criteria = st.session_state.trust_data['n_criteria']
-    criteria = st.session_state.trust_data['criteria']
-    data = {
+    n_criteria = st.session_state.marcos_data['n_criteria']
+    criteria = st.session_state.marcos_data['criteria']
+
+    df = pd.DataFrame({
         'Criterion': criteria,
         'Type': ['Benefit'] * n_criteria,
         'Weight': [1.0 / n_criteria] * n_criteria,
-    }
-    df = pd.DataFrame(data)
+    })
     edited_df = st.data_editor(
         df,
         use_container_width=True,
         column_config={
             'Type': st.column_config.SelectboxColumn('Type', options=['Benefit', 'Cost'])
-        }
+        },
+        key='marcos_criteria_info'
     )
 
     weight_sum = edited_df['Weight'].sum()
     if abs(weight_sum - 1.0) > 1e-6:
         st.warning(f'Weights sum to {weight_sum:.4f}, but should sum to 1.0')
+    else:
+        st.success('Criteria weights are valid.')
 
-    if st.button('Next: Constraint Values'):
-        st.session_state.trust_data['criteria_info'] = edited_df
-        st.session_state.trust_step = 7
+    if st.button('Calculate MARCOS Results', key='marcos_to_step7') and abs(weight_sum - 1.0) <= 1e-6:
+        st.session_state.marcos_data['criteria_info'] = edited_df
+        st.session_state.marcos_step = 7
         st.rerun()
 
 
-def trust_step7_constraints():
-    st.header('Step 7: Constraint Values')
-    criteria = st.session_state.trust_data['criteria']
-    decision_matrix = st.session_state.trust_data['decision_matrix']
+def marcos_step7_calculations():
+    st.header('Step 7: Fuzzy MARCOS Results')
 
-    min_vals = np.min(decision_matrix, axis=0)
-    max_vals = np.max(decision_matrix, axis=0)
-    df = pd.DataFrame({
+    alternatives = st.session_state.marcos_data['alternatives']
+    criteria = st.session_state.marcos_data['criteria']
+    fuzzy_matrix = st.session_state.marcos_data['fuzzy_matrix']
+    criteria_info = st.session_state.marcos_data['criteria_info']
+    weights = criteria_info['Weight'].astype(float).values
+    crit_types = criteria_info['Type'].tolist()
+
+    n_alt = len(alternatives)
+    n_crit = len(criteria)
+
+    # Step 1-2: Expanded matrix with AAI and AI
+    aai = []
+    ai = []
+    for j in range(n_crit):
+        col = [fuzzy_matrix[i][j] for i in range(n_alt)]
+        if crit_types[j] == 'Benefit':
+            aai.append((min(x[0] for x in col), min(x[1] for x in col), min(x[2] for x in col)))
+            ai.append((max(x[0] for x in col), max(x[1] for x in col), max(x[2] for x in col)))
+        else:
+            aai.append((max(x[0] for x in col), max(x[1] for x in col), max(x[2] for x in col)))
+            ai.append((min(x[0] for x in col), min(x[1] for x in col), min(x[2] for x in col)))
+
+    st.subheader('Step 1–2: Anti-Ideal (AAI) and Ideal (AI) Solutions')
+    df_ref = pd.DataFrame({
         'Criterion': criteria,
-        'Min Value': min_vals,
-        'Max Value': max_vals,
-        'ρL': min_vals,
-        'ρU': max_vals,
+        'Type': crit_types,
+        'AAI': [format_tfn(x) for x in aai],
+        'AI': [format_tfn(x) for x in ai],
     })
-    edited_df = st.data_editor(df, use_container_width=True)
+    st.dataframe(df_ref, use_container_width=True, hide_index=True)
 
-    if st.button('Calculate Results'):
-        st.session_state.trust_data['constraints'] = edited_df
-        st.session_state.trust_step = 8
-        st.rerun()
+    # Step 3: Fuzzy normalized matrix
+    norm = [[None for _ in range(n_crit)] for _ in range(n_alt + 2)]
+    labels = ['AAI'] + alternatives + ['AI']
+    expanded = [aai] + fuzzy_matrix + [ai]
 
+    for i in range(n_alt + 2):
+        for j in range(n_crit):
+            x = expanded[i][j]
+            if crit_types[j] == 'Benefit':
+                denom = ai[j][2]
+                denom = denom if abs(denom) > 1e-9 else 1e-9
+                norm[i][j] = (x[0] / denom, x[1] / denom, x[2] / denom)
+            else:
+                a = ai[j][0]
+                norm[i][j] = (
+                    a / max(x[2], 1e-9),
+                    a / max(x[1], 1e-9),
+                    a / max(x[0], 1e-9),
+                )
 
-def trust_step8_calculations():
-    st.header('Step 8: TRUST Method Results')
-    alternatives = st.session_state.trust_data['alternatives']
-    criteria = st.session_state.trust_data['criteria']
-    decision_matrix = st.session_state.trust_data['decision_matrix']
-    criteria_info = st.session_state.trust_data['criteria_info']
-    constraints = st.session_state.trust_data['constraints']
-    alpha = st.session_state.trust_data['alpha']
-    beta = st.session_state.trust_data['beta']
+    st.subheader('Step 3: Fuzzy Normalized Matrix')
+    norm_df = pd.DataFrame(index=labels, columns=criteria)
+    for i, lab in enumerate(labels):
+        for j, c in enumerate(criteria):
+            norm_df.loc[lab, c] = format_tfn(norm[i][j])
+    st.dataframe(norm_df, use_container_width=True)
 
-    n_alternatives = len(alternatives)
-    n_criteria = len(criteria)
-    criteria_types = criteria_info['Type'].values
-    weights = criteria_info['Weight'].values
-    LB = constraints['ρL'].values
-    UB = constraints['ρU'].values
+    # Step 4: Weighted normalized matrix
+    weighted = [[None for _ in range(n_crit)] for _ in range(n_alt + 2)]
+    for i in range(n_alt + 2):
+        for j in range(n_crit):
+            weighted[i][j] = (
+                norm[i][j][0] * weights[j],
+                norm[i][j][1] * weights[j],
+                norm[i][j][2] * weights[j],
+            )
+
+    st.subheader('Step 4: Weighted Fuzzy Normalized Matrix')
+    weighted_df = pd.DataFrame(index=labels, columns=criteria)
+    for i, lab in enumerate(labels):
+        for j, c in enumerate(criteria):
+            weighted_df.loc[lab, c] = format_tfn(weighted[i][j])
+    st.dataframe(weighted_df, use_container_width=True)
+
+    # Step 5: S_i
+    S = []
+    for i in range(n_alt + 2):
+        s = (0.0, 0.0, 0.0)
+        for j in range(n_crit):
+            s = tfn_add(s, weighted[i][j])
+        S.append(s)
+
+    s_df = pd.DataFrame({
+        'Alternative': labels,
+        'S_i (TFN)': [format_tfn(x) for x in S],
+    })
+    st.subheader('Step 5: Total Weighted Values (S_i)')
+    st.dataframe(s_df, use_container_width=True, hide_index=True)
+
+    S_aai = S[0]
+    S_ai = S[-1]
+
+    # Step 6: K- and K+
+    results = []
+    for idx, alt in enumerate(alternatives, start=1):
+        Si = S[idx]
+        K_minus = (Si[0] / max(S_aai[2], 1e-9), Si[1] / max(S_aai[1], 1e-9), Si[2] / max(S_aai[0], 1e-9))
+        K_plus = (Si[0] / max(S_ai[2], 1e-9), Si[1] / max(S_ai[1], 1e-9), Si[2] / max(S_ai[0], 1e-9))
+        t_i = tfn_add(K_minus, K_plus)
+        results.append({
+            'Alternative': alt,
+            'S_i': Si,
+            'K_minus': K_minus,
+            'K_plus': K_plus,
+            't_i': t_i,
+        })
+
+    df_k = pd.DataFrame({
+        'Alternative': [r['Alternative'] for r in results],
+        'Fuzzy K-': [format_tfn(r['K_minus']) for r in results],
+        'Fuzzy K+': [format_tfn(r['K_plus']) for r in results],
+        't_i': [format_tfn(r['t_i']) for r in results],
+    })
+    st.subheader('Step 6–7: Utility Degrees and Total Utility Degree')
+    st.dataframe(df_k, use_container_width=True, hide_index=True)
+
+    # Step 7-8: d and dfcrisp
+    d = (
+        max(r['t_i'][0] for r in results),
+        max(r['t_i'][1] for r in results),
+        max(r['t_i'][2] for r in results),
+    )
+    dfcrisp = defuzz_tfn(d)
+    st.metric('dfcrisp', f'{dfcrisp:.6f}')
+
+    # Step 8-9: f(K-), f(K+), final utility
+    final_rows = []
+    for r in results:
+        fuzzy_f_k_minus = tfn_scalar_div(r['K_plus'], dfcrisp)
+        fuzzy_f_k_plus = tfn_scalar_div(r['K_minus'], dfcrisp)
+
+        crisp_k_minus = defuzz_tfn(r['K_minus'])
+        crisp_k_plus = defuzz_tfn(r['K_plus'])
+        crisp_f_k_minus = defuzz_tfn(fuzzy_f_k_minus)
+        crisp_f_k_plus = defuzz_tfn(fuzzy_f_k_plus)
+
+        term_minus = ((1 - crisp_f_k_minus) / crisp_f_k_minus) if crisp_f_k_minus > 0 else 0.0
+        term_plus = ((1 - crisp_f_k_plus) / crisp_f_k_plus) if crisp_f_k_plus > 0 else 0.0
+        denom = 1 + term_minus + term_plus
+        utility = (crisp_k_plus + crisp_k_minus) / denom if denom != 0 else 0.0
+
+        final_rows.append({
+            'Alternative': r['Alternative'],
+            'Fuzzy K-': format_tfn(r['K_minus']),
+            'Fuzzy K+': format_tfn(r['K_plus']),
+            'Fuzzy F(K-)': format_tfn(fuzzy_f_k_minus),
+            'Fuzzy F(K+)': format_tfn(fuzzy_f_k_plus),
+            'Crisp Ki-': crisp_k_minus,
+            'Crisp Ki+': crisp_k_plus,
+            'Crisp F(K-)': crisp_f_k_minus,
+            'Crisp F(K+)': crisp_f_k_plus,
+            'f(Ki)': utility,
+        })
+
+    final_df = pd.DataFrame(final_rows).sort_values('f(Ki)', ascending=False).reset_index(drop=True)
+    final_df['Rank'] = range(1, len(final_df) + 1)
+
+    st.subheader('Step 8–10: Final Utility Function and Ranking')
+    st.dataframe(final_df, use_container_width=True, hide_index=True)
+
+    best_alt = final_df.iloc[0]['Alternative']
+    best_score = final_df.iloc[0]['f(Ki)']
+    st.success(f'Best Alternative: {best_alt} with utility score {best_score:.6f}')
 
     all_data = {
-        'n_alternatives': n_alternatives,
-        'n_criteria': n_criteria,
-        'n_experts': st.session_state.trust_data['n_experts'],
-        'alpha': alpha,
-        'beta': beta,
-        'alternatives': alternatives,
-        'criteria': criteria,
-        'decision_matrix': decision_matrix,
+        'n_alternatives': len(alternatives),
+        'n_criteria': len(criteria),
+        'n_experts': st.session_state.marcos_data['n_experts'],
+        'final_results': final_df,
+        'best_alternative': best_alt,
+        'best_score': best_score,
     }
 
-    st.subheader('Step 2.3: Normalization')
-    min_vals = np.min(decision_matrix, axis=0)
-    max_vals = np.max(decision_matrix, axis=0)
-
-    r_matrix = np.zeros((n_alternatives, n_criteria))
-    for j in range(n_criteria):
-        denom = max_vals[j] if criteria_types[j] == 'Benefit' else None
-        if criteria_types[j] == 'Benefit':
-            r_matrix[:, j] = decision_matrix[:, j] / (max_vals[j] if max_vals[j] != 0 else 1)
-        else:
-            min_val = min_vals[j] if min_vals[j] != 0 else 1e-9
-            safe_col = np.where(decision_matrix[:, j] == 0, 1e-9, decision_matrix[:, j])
-            r_matrix[:, j] = min_val / safe_col
-    st.dataframe(pd.DataFrame(r_matrix, columns=criteria, index=alternatives), use_container_width=True)
-    all_data['r_matrix'] = r_matrix
-
-    s_matrix = np.zeros((n_alternatives, n_criteria))
-    for j in range(n_criteria):
-        if criteria_types[j] == 'Benefit':
-            sum_val = np.sum(decision_matrix[:, j])
-            s_matrix[:, j] = decision_matrix[:, j] / (sum_val if sum_val != 0 else 1)
-        else:
-            safe_col = np.where(decision_matrix[:, j] == 0, 1e-9, decision_matrix[:, j])
-            sum_recip = np.sum(1 / safe_col)
-            s_matrix[:, j] = (1 / safe_col) / (sum_recip if sum_recip != 0 else 1)
-    st.dataframe(pd.DataFrame(s_matrix, columns=criteria, index=alternatives), use_container_width=True)
-    all_data['s_matrix'] = s_matrix
-
-    m_matrix = np.zeros((n_alternatives, n_criteria))
-    for j in range(n_criteria):
-        denom = (max_vals[j] - min_vals[j]) if (max_vals[j] - min_vals[j]) != 0 else 1
-        if criteria_types[j] == 'Benefit':
-            m_matrix[:, j] = (decision_matrix[:, j] - min_vals[j]) / denom
-        else:
-            m_matrix[:, j] = (max_vals[j] - decision_matrix[:, j]) / denom
-    st.dataframe(pd.DataFrame(m_matrix, columns=criteria, index=alternatives), use_container_width=True)
-    all_data['m_matrix'] = m_matrix
-
-    l_matrix = np.zeros((n_alternatives, n_criteria))
-    for j in range(n_criteria):
-        safe_col = np.where(decision_matrix[:, j] <= 0, 1e-9, decision_matrix[:, j])
-        product = np.prod(safe_col)
-        denom = np.log(product) if product > 0 and np.log(product) != 0 else 1
-        for i in range(n_alternatives):
-            l_matrix[i, j] = np.log(safe_col[i]) / denom
-    st.dataframe(pd.DataFrame(l_matrix, columns=criteria, index=alternatives), use_container_width=True)
-    all_data['l_matrix'] = l_matrix
-
-    h_matrix = alpha[0] * r_matrix + alpha[1] * s_matrix + alpha[2] * m_matrix + alpha[3] * l_matrix
-    st.write('Aggregated Normalized Matrix (h_ij)')
-    st.dataframe(pd.DataFrame(h_matrix, columns=criteria, index=alternatives), use_container_width=True)
-    all_data['h_matrix'] = h_matrix
-
-    st.subheader('Step 2.4: Constraint-based Normalization')
-    f_matrix = np.zeros((n_alternatives, n_criteria))
-    for j in range(n_criteria):
-        for i in range(n_alternatives):
-            d_ij = decision_matrix[i, j]
-            lb_j = LB[j]
-            ub_j = UB[j]
-            min_j = min_vals[j]
-            max_j = max_vals[j]
-            max_denom = max(lb_j - min_j, max_j - ub_j, 1e-9)
-
-            if criteria_types[j] == 'Benefit':
-                if lb_j <= d_ij <= ub_j:
-                    f_matrix[i, j] = 1.0
-                elif d_ij < lb_j:
-                    f_matrix[i, j] = 1 - (lb_j - d_ij) / (max_denom + 1)
-                else:
-                    f_matrix[i, j] = 1 - (d_ij - ub_j) / (max_denom + 1)
-            else:
-                if lb_j <= d_ij <= ub_j:
-                    f_matrix[i, j] = 1.0
-                elif d_ij < lb_j:
-                    f_matrix[i, j] = max(0, 1 - (lb_j - d_ij) / (max_denom + 1))
-                else:
-                    f_matrix[i, j] = max(0, 1 - (d_ij - ub_j) / (max_denom + 1))
-    st.dataframe(pd.DataFrame(f_matrix, columns=criteria, index=alternatives), use_container_width=True)
-    all_data['f_matrix'] = f_matrix
-
-    eta_matrix = h_matrix * f_matrix
-    st.subheader('Step 2.5: Constrained Aggregated Score Matrix (η_ij)')
-    st.dataframe(pd.DataFrame(eta_matrix, columns=criteria, index=alternatives), use_container_width=True)
-    all_data['eta_matrix'] = eta_matrix
-
-    v_matrix = eta_matrix * weights
-    st.subheader('Step 2.6: Weighted Decision Matrix (v_ij)')
-    st.dataframe(pd.DataFrame(v_matrix, columns=criteria, index=alternatives), use_container_width=True)
-    all_data['v_matrix'] = v_matrix
-
-    tau = np.min(v_matrix, axis=0)
-    st.subheader('Step 2.7: Negative-Ideal Solution (τ_j)')
-    st.dataframe(pd.DataFrame([tau], columns=criteria, index=['τ']), use_container_width=True)
-    all_data['tau'] = tau
-
-    st.subheader('Step 2.8: Distance Measures')
-    epsilon = np.sqrt(np.sum((v_matrix - tau) ** 2, axis=1))
-    pi_vals = np.sum(np.abs(v_matrix - tau), axis=1)
-    l_distance = np.sum(np.log10(1 + np.abs(v_matrix - tau)), axis=1)
-    tau_safe = np.where(tau == 0, 1e-9, tau)
-    rho = np.sum(((v_matrix - tau) ** 2) / tau_safe, axis=1)
-
-    distances = pd.DataFrame({
-        'Euclidean (ε)': epsilon,
-        'Manhattan (π)': pi_vals,
-        'Lorentzian (l)': l_distance,
-        'Pearson (ρ)': rho,
-    }, index=alternatives)
-    st.dataframe(distances, use_container_width=True)
-    all_data['distances'] = distances
-
-    st.subheader('Step 2.9: Relative Assessment Matrices')
-    wp_sum = np.zeros(n_alternatives)
-    H_sum = np.zeros(n_alternatives)
-    for i in range(n_alternatives):
-        for k in range(n_alternatives):
-            wp_ik = (epsilon[i] - epsilon[k]) + ((epsilon[i] - epsilon[k]) * (pi_vals[i] - pi_vals[k]))
-            H_ik = (l_distance[i] - l_distance[k]) + ((l_distance[i] - l_distance[k]) * (rho[i] - rho[k]))
-            wp_sum[i] += wp_ik
-            H_sum[i] += H_ik
-
-    rel_assessment = pd.DataFrame({
-        'Alternative': alternatives,
-        '∑Pik': wp_sum,
-        '∑Hik': H_sum,
-    })
-    st.dataframe(rel_assessment, use_container_width=True)
-    all_data['rel_assessment'] = rel_assessment
-
-    st.subheader('Step 2.10: Final Scores and Ranking')
-    L_score = beta * wp_sum + (1 - beta) * H_sum
-    results = pd.DataFrame({
-        'Alternative': alternatives,
-        '∑Pik': wp_sum,
-        '∑Hik': H_sum,
-        'L Score': L_score,
-    }).sort_values('L Score', ascending=False)
-    results['Rank'] = range(1, len(results) + 1)
-    st.dataframe(results, use_container_width=True)
-
-    best_alt = results.iloc[0]['Alternative']
-    best_score = results.iloc[0]['L Score']
-    st.success(f'Best Alternative: {best_alt} with score: {best_score:.4f}')
-
-    all_data['final_results'] = results
-    all_data['best_alternative'] = best_alt
-    all_data['best_score'] = best_score
-
-    doc_bytes = create_trust_word_document(all_data)
+    doc_bytes = create_marcos_word_document(all_data)
     st.download_button(
-        label='Export TRUST Results to Word',
+        label='Export MARCOS Results to Word',
         data=doc_bytes,
-        file_name='Triangular_Fuzzy_TRUST_Results.docx',
+        file_name='Triangular_Fuzzy_MARCOS_Results.docx',
         mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         use_container_width=True,
     )
 
-    if st.button('Start Over'):
-        st.session_state.trust_step = 1
-        st.session_state.trust_data = {}
+    if st.button('Start Over', key='marcos_restart'):
+        st.session_state.marcos_step = 1
+        st.session_state.marcos_data = {}
         st.rerun()
 
+
+# =========================================================
+# MAIN
+# =========================================================
+def main():
+    st.sidebar.title('Fuzzy MCDM Model Selection')
+    st.sidebar.markdown('Select the model you want to use:')
+
+    model_choice = st.sidebar.radio(
+        'Choose Model:',
+        ['Triangular Fuzzy OPA', 'Triangular Fuzzy MARCOS Method'],
+        index=0,
+    )
+
+    if model_choice == 'Triangular Fuzzy OPA':
+        opa_model()
+    else:
+        marcos_model()
+
+    st.markdown(
+        """
+        <div class="footer">
+        <p>Integrated Fuzzy MCDM Models | OPA + Fuzzy MARCOS for Moktadir, M. A.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+if __name__ == '__main__':
+    main()
 
 # =========================================================
 # MAIN
