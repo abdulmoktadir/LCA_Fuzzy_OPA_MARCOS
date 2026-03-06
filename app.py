@@ -1210,34 +1210,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# =========================================================
-# MAIN
-# =========================================================
-def main():
-    st.sidebar.title('Fuzzy MCDM Model Selection')
-    st.sidebar.markdown('Select the model you want to use:')
-
-    model_choice = st.sidebar.radio(
-        'Choose Model:',
-        ['Triangular Fuzzy OPA', 'Triangular Fuzzy TRUST Method'],
-        index=0,
-    )
-
-    if model_choice == 'Triangular Fuzzy OPA':
-        opa_model()
-    else:
-        trust_model()
-
-    st.markdown(
-        """
-        <div class="footer">
-        <p>Integrated Fuzzy MCDM Models | Updated to TFN scale for Moktadir, M. A.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-if __name__ == '__main__':
-    main()
