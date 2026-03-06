@@ -171,15 +171,22 @@ LINGUISTIC_OPTIONS = list(LINGUISTIC_SCALE.keys())
 # SHARED FUZZY FUNCTIONS
 # =========================================================
 def trig_geom_component(values, weights):
+    """
+    Trigonometric aggregation component matching the user's Excel formula:
+    aggregated = sum(values) * (2/pi) * acos( product( cos(pi * v/sum(values) / 2) ** w ) )
+    """
     s = sum(values)
     if s == 0:
         return 0.0
+
     prod = 1.0
     for v, w in zip(values, weights):
-        f = v / s
-        prod *= np.sin(np.pi * f / 2) ** w
-    arc = np.arcsin(np.clip(prod, 0, 1))
-    return s * (2 / np.pi) * arc
+        ratio = v / s
+        term = np.cos(np.pi * ratio / 2) ** w
+        prod *= term
+
+    prod = np.clip(prod, -1.0, 1.0)
+    return s * (2 / np.pi) * np.arccos(prod)
 
 
 def aggregate_tfn(tfn_list, weights):
@@ -193,7 +200,8 @@ def aggregate_tfn(tfn_list, weights):
 
 
 def defuzz_tfn(tfn):
-    return (tfn[0] + 4*tfn[1] + tfn[2]) / 6.0
+    """Graded mean integration representation for TFN."""
+    return (tfn[0] + 4 * tfn[1] + tfn[2]) / 6.0
 
 
 def crisp_to_tfn(x, alpha=0.05):
@@ -219,7 +227,7 @@ def solve_fuzzy_opa(coeff_list, n):
     psi_m = LpVariable("psi_m", lowBound=0)
     psi_u = LpVariable("psi_u", lowBound=0)
 
-    prob += (psi_l + 4*psi_m + psi_u) / 6
+    prob += (psi_l + psi_m + psi_u) / 3
 
     for i in range(n):
         prob += w_l[i] <= w_m[i]
@@ -358,7 +366,7 @@ def display_optimization_formulation(coeff_list, criteria_names):
         """
         <strong>Triangular Fuzzy OPA Formulation</strong><br><br>
         Objective:<br>
-        Maximize: (Ψ_l +4* Ψ_m + Ψ_u) / 6<br><br>
+        Maximize: (Ψ_l + Ψ_m + Ψ_u) / 3<br><br>
         Constraints:<br>
         1. Triangular ordering: w_lᵢ ≤ w_mᵢ ≤ w_uᵢ<br>
         2. Normalization: Σw_lᵢ = 0.9, Σw_mᵢ = 1.0, Σw_uᵢ = 1.1<br>
@@ -441,8 +449,8 @@ def opa_model():
                 min_value=0.0,
                 max_value=1.0,
                 value=float(st.session_state.opa_expert_weights[e]) if e < len(st.session_state.opa_expert_weights) else 1.0 / num_experts,
-                step=0.01,
-                format='%.2f',
+                step=0.0001,
+                format='%.4f',
                 key=f'opa_expert_w_{e}'
             )
             expert_weights.append(w)
@@ -807,8 +815,8 @@ def trust_step3_expert_weights():
             min_value=0.0,
             max_value=1.0,
             value=float(st.session_state.trust_data['expert_weights'][e]),
-            step=0.01,
-            format='%.2f'
+            step=0.0001,
+            format='%.4f'
         )
         expert_weights.append(weight)
 
