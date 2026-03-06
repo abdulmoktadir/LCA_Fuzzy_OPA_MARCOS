@@ -665,6 +665,14 @@ def defuzz_marcos_tfn(a):
     return (a[0] + 4 * a[1] + a[2]) / 6.0
 
 
+def generalized_mean_tfn(a):
+    l, m, u = float(a[0]), float(a[1]), float(a[2])
+    denom = 3.0 * (u - l)
+    if abs(denom) < 1e-12:
+        return m
+    return (-l * l + u * u - l * m + m * u) / denom
+
+
 def crisp_to_tfn_10pct(x):
     x = float(x)
     if x == 0:
@@ -1053,32 +1061,47 @@ def marcos_step7_calculations():
     st.dataframe(df_w, use_container_width=True, hide_index=True)
 
     # =====================================================
-    # Step 1-2: Extended integrated matrix references
-    # Excel logic:
-    # A (AI) = anti-ideal reference row
-    # A (ID) = ideal reference row
-    # For benefit: anti-ideal=min, ideal=max
-    # For cost: anti-ideal=max, ideal=min
+    # Step 1: Generalized mean M(Vij) from integrated matrix
+    # M(Vij)=(-a^2+c^2-ab+bc)/(3(-a+c))
+    # =====================================================
+    m_values = [[generalized_mean_tfn(fuzzy_matrix[i][j]) for j in range(n_crit)] for i in range(n_alt)]
+
+    m_df = pd.DataFrame(m_values, index=alternatives, columns=criteria)
+    st.subheader('Step 1: M(Vij) Matrix')
+    st.dataframe(m_df, use_container_width=True)
+
+    # =====================================================
+    # Step 2: Determine A (AI) and A (ID) using M(Vij)
+    # Benefit: A (AI)=MIN M(Vij), A (ID)=MAX M(Vij)
+    # Cost:    A (AI)=MAX M(Vij), A (ID)=MIN M(Vij)
     # =====================================================
     anti_ideal = []
     ideal = []
+    ref_rows = []
     for j in range(n_crit):
-        col = [fuzzy_matrix[i][j] for i in range(n_alt)]
+        col_m = [m_values[i][j] for i in range(n_alt)]
         if crit_types[j] == 'Benefit':
-            anti_ideal.append((min(x[0] for x in col), min(x[1] for x in col), min(x[2] for x in col)))
-            ideal.append((max(x[0] for x in col), max(x[1] for x in col), max(x[2] for x in col)))
+            ai_idx = int(np.argmin(col_m))
+            id_idx = int(np.argmax(col_m))
         else:
-            anti_ideal.append((max(x[0] for x in col), max(x[1] for x in col), max(x[2] for x in col)))
-            ideal.append((min(x[0] for x in col), min(x[1] for x in col), min(x[2] for x in col)))
+            ai_idx = int(np.argmax(col_m))
+            id_idx = int(np.argmin(col_m))
 
-    st.subheader('Step 1–2: Extended Integrated Matrix References')
-    df_ref = pd.DataFrame({
-        'Criterion': criteria,
-        'Type': crit_types,
-        'A (AI)': [format_tfn(x) for x in anti_ideal],
-        'A (ID)': [format_tfn(x) for x in ideal],
-    })
-    st.dataframe(df_ref, use_container_width=True, hide_index=True)
+        anti_ideal.append(fuzzy_matrix[ai_idx][j])
+        ideal.append(fuzzy_matrix[id_idx][j])
+        ref_rows.append({
+            'Criterion': criteria[j],
+            'Type': crit_types[j],
+            'Min M(Vij)': min(col_m),
+            'Max M(Vij)': max(col_m),
+            'A (AI) Source': alternatives[ai_idx],
+            'A (AI)': format_tfn(fuzzy_matrix[ai_idx][j]),
+            'A (ID) Source': alternatives[id_idx],
+            'A (ID)': format_tfn(fuzzy_matrix[id_idx][j]),
+        })
+
+    st.subheader('Step 2: A (AI) and A (ID) from M(Vij)')
+    st.dataframe(pd.DataFrame(ref_rows), use_container_width=True, hide_index=True)
 
     # =====================================================
     # Step 3: Extended integrated matrix
