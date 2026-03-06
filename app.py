@@ -1075,32 +1075,36 @@ def marcos_step7_calculations():
 
     # =====================================================
     # Step 2: Determine A (AI) and A (ID) using M(Vij)
-    # Benefit: A (AI)=MIN M(Vij), A (ID)=MAX M(Vij)
-    # Cost:    A (AI)=MAX M(Vij), A (ID)=MIN M(Vij)
+    # IMPORTANT: match Excel exactly.
+    # The sheet does NOT copy the source fuzzy alternative row.
+    # It uses scalar min/max of M(Vij) and repeats the value as (m,m,m).
+    # Benefit: A (AI)=min M(Vij), A (ID)=max M(Vij)
+    # Cost:    A (AI)=max M(Vij), A (ID)=min M(Vij)
     # =====================================================
     anti_ideal = []
     ideal = []
     ref_rows = []
     for j in range(n_crit):
         col_m = [m_values[i][j] for i in range(n_alt)]
-        if crit_types[j] == 'Benefit':
-            ai_idx = int(np.argmin(col_m))
-            id_idx = int(np.argmax(col_m))
-        else:
-            ai_idx = int(np.argmax(col_m))
-            id_idx = int(np.argmin(col_m))
+        min_m = min(col_m)
+        max_m = max(col_m)
 
-        anti_ideal.append(fuzzy_matrix[ai_idx][j])
-        ideal.append(fuzzy_matrix[id_idx][j])
+        if crit_types[j] == 'Benefit':
+            ai_scalar = min_m
+            id_scalar = max_m
+        else:
+            ai_scalar = max_m
+            id_scalar = min_m
+
+        anti_ideal.append((ai_scalar, ai_scalar, ai_scalar))
+        ideal.append((id_scalar, id_scalar, id_scalar))
         ref_rows.append({
             'Criterion': criteria[j],
             'Type': crit_types[j],
-            'Min M(Vij)': min(col_m),
-            'Max M(Vij)': max(col_m),
-            'A (AI) Source': alternatives[ai_idx],
-            'A (AI)': format_tfn(fuzzy_matrix[ai_idx][j]),
-            'A (ID) Source': alternatives[id_idx],
-            'A (ID)': format_tfn(fuzzy_matrix[id_idx][j]),
+            'Min M(Vij)': min_m,
+            'Max M(Vij)': max_m,
+            'A (AI)': format_tfn((ai_scalar, ai_scalar, ai_scalar)),
+            'A (ID)': format_tfn((id_scalar, id_scalar, id_scalar)),
         })
 
     st.subheader('Step 2: A (AI) and A (ID) from M(Vij)')
