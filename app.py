@@ -193,7 +193,7 @@ def aggregate_tfn(tfn_list, weights):
 
 
 def defuzz_tfn(tfn):
-    return (tfn[0] + tfn[1] + tfn[2]) / 3.0
+    return (tfn[0] + 4*tfn[1] + tfn[2]) / 6.0
 
 
 def crisp_to_tfn(x, alpha=0.05):
@@ -219,7 +219,7 @@ def solve_fuzzy_opa(coeff_list, n):
     psi_m = LpVariable("psi_m", lowBound=0)
     psi_u = LpVariable("psi_u", lowBound=0)
 
-    prob += (psi_l + psi_m + psi_u) / 3
+    prob += (psi_l + 4*psi_m + psi_u) / 6
 
     for i in range(n):
         prob += w_l[i] <= w_m[i]
@@ -358,7 +358,7 @@ def display_optimization_formulation(coeff_list, criteria_names):
         """
         <strong>Triangular Fuzzy OPA Formulation</strong><br><br>
         Objective:<br>
-        Maximize: (Ψ_l + Ψ_m + Ψ_u) / 3<br><br>
+        Maximize: (Ψ_l +4* Ψ_m + Ψ_u) / 6<br><br>
         Constraints:<br>
         1. Triangular ordering: w_lᵢ ≤ w_mᵢ ≤ w_uᵢ<br>
         2. Normalization: Σw_lᵢ = 0.9, Σw_mᵢ = 1.0, Σw_uᵢ = 1.1<br>
