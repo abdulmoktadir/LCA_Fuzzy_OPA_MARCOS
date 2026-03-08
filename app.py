@@ -137,7 +137,7 @@ st.markdown(
 )
 
 # =========================================================
-# TRIANGULAR FUZZY SCALE (USER-PROVIDED)
+# TRIANGULAR FUZZY SCALE
 # =========================================================
 # Format: (l, m, u)
 LINGUISTIC_SCALE = {
@@ -168,7 +168,7 @@ LINGUISTIC_OPTIONS = list(LINGUISTIC_SCALE.keys())
 
 
 # =========================================================
-# SHARED FUZZY FUNCTIONS
+# FUZZY FUNCTIONS
 # =========================================================
 def trig_geom_component(values, weights):
     """
@@ -214,7 +214,7 @@ def format_tfn(tfn):
 
 
 # =========================================================
-# OPA MODULE (TRIANGULAR FUZZY OPA)
+# TRIANGULAR FUZZY OPA
 # =========================================================
 def solve_fuzzy_opa(coeff_list, n):
     prob = LpProblem("Triangular_Fuzzy_OPA", LpMaximize)
@@ -641,7 +641,7 @@ def opa_model():
 
 
 # =========================================================
-# MARCOS MODULE (TRIANGULAR FUZZY MARCOS)
+# TRIANGULAR FUZZY MARCOS
 # =========================================================
 def tfn_add(a, b):
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
@@ -1075,8 +1075,6 @@ def marcos_step7_calculations():
 
     # =====================================================
     # Step 2: Determine A (AI) and A (ID) using M(Vij)
-    # IMPORTANT: match Excel exactly.
-    # The sheet does NOT copy the source fuzzy alternative row.
     # It uses scalar min/max of M(Vij) and repeats the value as (m,m,m).
     # Benefit: A (AI)=min M(Vij), A (ID)=max M(Vij)
     # Cost:    A (AI)=max M(Vij), A (ID)=min M(Vij)
@@ -1127,7 +1125,6 @@ def marcos_step7_calculations():
 
     # =====================================================
     # Step 4: Normalized extended integrated matrix
-    # Excel-equivalent formulas:
     # Benefit: (x_l/ID_u, x_m/ID_u, x_u/ID_u)
     # Cost:    (ID_l/x_u, ID_l/x_m, ID_l/x_l)
     # =====================================================
@@ -1159,7 +1156,6 @@ def marcos_step7_calculations():
 
     # =====================================================
     # Step 5: Weighted normalized matrix
-    # Excel-equivalent component-wise fuzzy multiplication
     # =====================================================
     weighted = [[None for _ in range(n_crit)] for _ in range(n_alt + 2)]
     for i in range(n_alt + 2):
@@ -1200,7 +1196,6 @@ def marcos_step7_calculations():
 
     # =====================================================
     # Step 7: Fuzzy Ki- and Ki+
-    # Excel-equivalent:
     # Ki- = Si / S(AI)
     # Ki+ = Si / S(ID)
     # with triangular fuzzy division ordering:
@@ -1241,7 +1236,6 @@ def marcos_step7_calculations():
 
     # =====================================================
     # Step 8: dfcrisp MAX
-    # IMPORTANT Excel logic:
     # dfcrisp = MAX(crisp T_i), not max fuzzy component
     # =====================================================
     crisp_T = [defuzz_marcos_tfn(r['T_i']) for r in results]
@@ -1250,7 +1244,6 @@ def marcos_step7_calculations():
 
     # =====================================================
     # Step 9-10: Fuzzy F(K-), F(K+), crisp utilities and ranking
-    # Excel-equivalent:
     # F(K-) = K+ / dfcrisp
     # F(K+) = K- / dfcrisp
     # =====================================================
