@@ -227,16 +227,16 @@ def solve_fuzzy_opa(coeff_list, n):
     psi_m = LpVariable("psi_m", lowBound=0)
     psi_u = LpVariable("psi_u", lowBound=0)
 
-    prob += (psi_l + psi_m + psi_u) / 3
+    prob += (psi_l + 2 * psi_m + psi_u) / 4
 
     for i in range(n):
         prob += w_l[i] <= w_m[i]
         prob += w_m[i] <= w_u[i]
 
     # TFN normalization
-    prob += lpSum(w_l) == 0.9
+    prob += lpSum(w_l) == 0.8
     prob += lpSum(w_m) == 1.0
-    prob += lpSum(w_u) == 1.1
+    prob += lpSum(w_u) == 1.2
 
     for a in range(n - 1):
         prob += coeff_list[a][0] * (w_l[a] - w_u[a + 1]) >= psi_l
@@ -366,10 +366,10 @@ def display_optimization_formulation(coeff_list, criteria_names):
         """
         <strong>Triangular Fuzzy OPA Formulation</strong><br><br>
         Objective:<br>
-        Maximize: (Ψ_l + Ψ_m + Ψ_u) / 3<br><br>
+        Maximize: (Ψ_l + 2*Ψ_m + Ψ_u) / 4<br><br>
         Constraints:<br>
         1. Triangular ordering: w_lᵢ ≤ w_mᵢ ≤ w_uᵢ<br>
-        2. Normalization: Σw_lᵢ = 0.9, Σw_mᵢ = 1.0, Σw_uᵢ = 1.1<br>
+        2. Normalization: Σw_lᵢ = 0.8, Σw_mᵢ = 1.0, Σw_uᵢ = 1.2<br>
         3. Adjacent ranked criteria:<br>
         &nbsp;&nbsp;θ_lᵃ(w_lᵃ - w_uᵃ⁺¹) ≥ Ψ_l<br>
         &nbsp;&nbsp;θ_mᵃ(w_mᵃ - w_mᵃ⁺¹) ≥ Ψ_m<br>
