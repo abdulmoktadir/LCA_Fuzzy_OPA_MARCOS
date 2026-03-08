@@ -293,7 +293,7 @@ def create_opa_word_document(criteria, theta, defuzz_values, coeff, ranked_crite
     for e in range(num_experts):
         row = table.add_row().cells
         row[0].text = f'Expert {e+1}'
-        row[1].text = f'{expert_weights[e]:.4f}'
+        row[1].text = f'{expert_weights[e]:.6f}'
 
     doc.add_paragraph('')
     doc.add_heading('Aggregated Triangular Fuzzy Importance (Theta)', level=1)
@@ -449,16 +449,16 @@ def opa_model():
                 min_value=0.0,
                 max_value=1.0,
                 value=float(st.session_state.opa_expert_weights[e]) if e < len(st.session_state.opa_expert_weights) else 1.0 / num_experts,
-                step=0.0001,
-                format='%.4f',
+                step=0.000001,
+                format='%.6f',
                 key=f'opa_expert_w_{e}'
             )
             expert_weights.append(w)
 
         sum_w = sum(expert_weights)
-        st.write(f'**Sum of expert weights: {sum_w:.4f}**')
+        st.write(f'**Sum of expert weights: {sum_w:.6f}**')
         if abs(sum_w - 1.0) > 1e-6:
-            st.error('Expert weights must sum to 1.00.')
+            st.error('Expert weights must sum to 1.0.')
             st.session_state.opa_weights_valid = False
         else:
             st.session_state.opa_expert_weights = expert_weights
